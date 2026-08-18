@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>RAGVoice</title>
+
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+<header>
+
+    <div class="brand">
+
+        <div class="logo">R</div>
+
+        <div>
+            <h1>RAGVoice</h1>
+            <p>Voice-enabled grounded RAG</p>
+        </div>
+
+    </div>
+
+    <div class="online">
+        <span></span>
+        ONLINE
+    </div>
+
+</header>
+
+
+<main>
+
+    <section class="hero">
+
+        <div class="eyebrow">
+            MSMARCO-XI · VOICE RAG
+        </div>
+
+        <h2>
+            Ask naturally.<br>
+            <span>Get grounded answers.</span>
+        </h2>
+
+        <p>
+            Speak or type your question. The system retrieves
+            relevant evidence and generates a grounded response.
+        </p>
+
+    </section>
+
+
+    <section class="console">
+
+        <!-- ================= VOICE ================= -->
+
+        <div class="voice">
+
+            <button id="recordButton" type="button">
+                🎤
+                <span id="recordText">Start speaking</span>
+            </button>
+
+            <div id="recordStatus">
+                Click the microphone and ask your question.
+            </div>
+
+        </div>
+
+
+        <!-- ================= QUESTION ================= -->
+
+        <div class="inputArea">
+
+            <input
+                id="query"
+                type="text"
+                placeholder="Type your question here..."
+                autocomplete="off"
+            >
+
+            <button
+                id="askButton"
+                type="button"
+            >
+                Ask
+            </button>
+
+        </div>
+
+
+        <!-- ================= RESULTS ================= -->
+
+        <section
+            id="results"
+            class="results hidden"
+        >
+
+            <!-- TRANSCRIPT -->
+
+            <div class="card">
+
+                <div class="label">
+                    TRANSCRIPT / QUERY
+                </div>
+
+                <div id="transcript">
+                </div>
+
+            </div>
+
+
+            <!-- ANSWER -->
+
+            <div class="card">
+
+                <div class="answerHeader">
+
+                    <div class="label">
+                        GROUNDED ANSWER
+                    </div>
+
+                    <div id="grounded">
+                    </div>
+
+                </div>
+
+                <div id="answer">
+                    Retrieving evidence...
+                </div>
+
+            </div>
+
+
+            <!-- METRICS -->
+
+            <div class="metrics">
+
+                <div>
+                    <span>RETRIEVAL</span>
+
+                    <strong id="retrievalLatency">
+                        0 ms
+                    </strong>
+                </div>
+
+
+                <div>
+                    <span>TOTAL LATENCY</span>
+
+                    <strong id="totalLatency">
+                        0 ms
+                    </strong>
+                </div>
+
+
+                <div>
+                    <span>SOURCES</span>
+
+                    <strong id="sourceCount">
+                        0
+                    </strong>
+                </div>
+
+            </div>
+
+
+            <!-- SOURCES -->
+
+            <div class="card">
+
+                <div class="label">
+                    RETRIEVED EVIDENCE
+                </div>
+
+                <div id="sources">
+                </div>
+
+            </div>
+
+        </section>
+
+    </section>
+
+</main>
+
+
+<footer>
+
+    <span>
+        RAGVoice · Voice-Enabled Retrieval Augmented Generation
+    </span>
+
+    <span>
+        MSMARCO-XI
+    </span>
+
+</footer>
+
+
+<!-- =====================================================
+     JAVASCRIPT
+===================================================== -->
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+
+    // =================================================
+    // ELEMENTS
+    // =================================================
+
+    const recordButton =
+        document.getElementById("recordButton");
+
+    const recordText =
+        document.getElementById("recordText");
+
+    const recordStatus =
+        document.getElementById("recordStatus");
+
+    const queryInput =
+        document.getElementById("query");
+
+    const askButton =
+        document.getElementById("askButton");
+
+    const results =
+        document.getElementById("results");
+
+    const transcript =
+        document.getElementById("transcript");
+
+    const answer =
+        document.getElementById("answer");
+
+    const grounded =
+        document.getElementById("grounded");
+
+    const retrievalLatency =
+        document.getElementById("retrievalLatency");
+
+    const totalLatency =
+        document.getElementById("totalLatency");
+
+    const sourceCount =
+        document.getElementById("sourceCount");
+
+    const sources =
+        document.getElementById("sources");
+
+
+    // =================================================
+    // SPEECH RECOGNITION
+    // =================================================
+
+    const SpeechRecognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
+
+
+    let recognition = null;
+    let recording = false;
+
+
+    if (!SpeechRecognition) {
+
+        recordStatus.textContent =
+            "Speech recognition is not supported. Please use Chrome.";
+
+        recordButton.disabled = true;
+
+    } else {
+
+        recognition =
+            new SpeechRecognition();
+
+        recognition.lang = "en-IN";
+
+        recognition.continuous = false;
+
+        recognition.interimResults = false;
+
+
+        // =============================================
+        // START RECORDING
+        // =============================================
+
+        recognition.onstart = function () {
+
+            recording = true;
+
+            recordText.textContent =
+                "Stop speaking";
+
+            recordStatus.textContent =
+                "Listening... Speak your question.";
+
+            recordButton.classList.add(
+                "recording"
+            );
+
+        };
+
+
+        // =============================================
+        // SPEECH RESULT
+        // =============================================
+
+        recognition.onresult = function (event) {
+
+            const text =
+                event.results[0][0].transcript;
+
+            queryInput.value =
+                text;
+
+            recordStatus.textContent =
+                "Voice captured. Click Ask.";
+
+        };
+
+
+        // =============================================
+        // MICROPHONE ERROR
+        // =============================================
+
+        recognition.onerror = function (event) {
+
+            console.error(
+                "Speech recognition error:",
+                event.error
+            );
+
+            recording = false;
+
+            recordText.textContent =
+                "Start speaking";
+
+            recordButton.classList.remove(
+                "recording"
+            );
+
+
+            if (event.error === "not-allowed") {
+
+                recordStatus.textContent =
+                    "Microphone permission denied. Allow microphone access in Chrome.";
+
+            } else if (event.error === "no-speech") {
+
+                recordStatus.textContent =
+                    "No speech detected. Please try again.";
+
+            } else {
+
+                recordStatus.textContent =
+                    "Microphone error: " +
+                    event.error;
+
+            }
+
+        };
+
+
+        // =============================================
+        // RECORDING ENDED
+        // =============================================
+
+        recognition.onend = function () {
+
+            recording = false;
+
+            recordText.textContent =
+                "Start speaking";
+
+            recordButton.classList.remove(
+                "recording"
+            );
+
+        };
+
+
+        // =============================================
+        // MICROPHONE BUTTON
+        // =============================================
+
+        recordButton.addEventListener(
+            "click",
+            function () {
+
+                if (recording) {
+
+                    recognition.stop();
+
+                    return;
+                }
+
+
+                try {
+
+                    recognition.start();
+
+                } catch (error) {
+
+                    console.error(
+                        "Could not start microphone:",
+                        error
+                    );
+
+                }
+
+            }
+        );
+
+    }
+
+
+    // =================================================
+    // ASK BUTTON
+    // =================================================
+
+    askButton.addEventListener(
+        "click",
+        askQuestion
+    );
+
+
+    // =================================================
+    // ENTER KEY
+    // =================================================
+
+    queryInput.addEventListener(
+        "keydown",
+        function (event) {
+
+            if (event.key === "Enter") {
+
+                event.preventDefault();
+
+                askQuestion();
+
+            }
+
+        }
+    );
+
+
+    // =================================================
+    // RAG QUERY
+    // =================================================
+
+    async function askQuestion() {
+
+        const question =
+            queryInput.value.trim();
+
+
+        // Empty question
+
+        if (!question) {
+
+            recordStatus.textContent =
+                "Please type or speak a question.";
+
+            queryInput.focus();
+
+            return;
+        }
+
+
+        // Show results
+
+        results.classList.remove(
+            "hidden"
+        );
+
+
+        transcript.textContent =
+            question;
+
+        answer.textContent =
+            "Retrieving evidence...";
+
+        grounded.textContent =
+            "Processing...";
+
+        sources.innerHTML =
+            "";
+
+        askButton.disabled =
+            true;
+
+        recordStatus.textContent =
+            "Searching the RAG knowledge base...";
+
+
+        try {
+
+
+            // =========================================
+            // CALL FASTAPI
+            // =========================================
+
+            const response =
+                await fetch(
+                    "/query",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            query: question
+                        })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            console.log(
+                "RAG response:",
+                data
+            );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.detail ||
+                    "Backend request failed"
+                );
+
+            }
+
+
+            // =========================================
+            // ANSWER
+            // =========================================
+
+            answer.textContent =
+                data.answer ||
+                "No answer returned.";
+
+
+            // =========================================
+            // GROUNDED STATUS
+            // =========================================
+
+            if (data.grounded) {
+
+                grounded.textContent =
+                    "✓ GROUNDED";
+
+            } else {
+
+                grounded.textContent =
+                    "⚠ REVIEW";
+
+            }
+
+
+            // =========================================
+            // METRICS
+            // =========================================
+
+            retrievalLatency.textContent =
+                (data.retrieval_latency_ms ?? 0)
+                + " ms";
+
+
+            totalLatency.textContent =
+                (data.latency_ms ?? 0)
+                + " ms";
+
+
+            sourceCount.textContent =
+                (data.sources || []).length;
+
+
+            // =========================================
+            // SOURCES
+            // =========================================
+
+            if (
+                data.sources &&
+                data.sources.length > 0
+            ) {
+
+                data.sources.forEach(
+                    function (source) {
+
+                        const sourceBox =
+                            document.createElement(
+                                "div"
+                            );
+
+                        sourceBox.className =
+                            "source";
+
+
+                        const title =
+                            document.createElement(
+                                "strong"
+                            );
+
+                        title.textContent =
+                            source.chunk_id ||
+                            "Source";
+
+
+                        const score =
+                            document.createElement(
+                                "small"
+                            );
+
+                        score.textContent =
+                            "Score: " +
+                            (
+                                source.score ??
+                                "N/A"
+                            );
+
+
+                        const text =
+                            document.createElement(
+                                "p"
+                            );
+
+                        text.textContent =
+                            source.text ||
+                            "";
+
+
+                        sourceBox.appendChild(
+                            title
+                        );
+
+                        sourceBox.appendChild(
+                            score
+                        );
+
+                        sourceBox.appendChild(
+                            text
+                        );
+
+
+                        sources.appendChild(
+                            sourceBox
+                        );
+
+                    }
+                );
+
+            } else {
+
+                sources.textContent =
+                    "No retrieved sources.";
+
+            }
+
+
+            recordStatus.textContent =
+                "Answer generated successfully.";
+
+        }
+
+
+        catch (error) {
+
+            console.error(
+                "RAG error:",
+                error
+            );
+
+
+            answer.textContent =
+                "Could not connect to the RAG backend.";
+
+
+            grounded.textContent =
+                "ERROR";
+
+
+            recordStatus.textContent =
+                "Backend error. Check the Terminal.";
+
+        }
+
+
+        finally {
+
+            askButton.disabled =
+                false;
+
+        }
+
+    }
+
+});
+
+</script>
+
+</body>
+
+</html>
